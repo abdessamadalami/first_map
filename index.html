@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Webmap 201</title>
+    <link rel="stylesheet" href="src/leaflet.css" />
+    <link rel="stylesheet" href="src/css/bootstrap.css" />
+    <link rel="stylesheet" href="src/Leaflet.PolylineMeasure.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="src/easy-button.css" />
+    <link rel="stylesheet" href="src/plugins/serc/css/L.Control.OpenCageSearch.css" />
+    <script src="src/jquery-3.2.0.min.js"></script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="src/leaflet-src.js"></script>
+    <script src="src/L.LatLng.UTM.js" data-cover></script>
+    <script src="src/Leaflet.PolylineMeasure.js"></script>
+    <script src="src/easy-button.js"></script>
+    <script src="src/plugins/serc/js/L.Control.OpenCageSearch.js"></script>
+    <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+
+    <script>
+      var bbox = turf.bbox(features);
+    </script>
+    <!--    ********* ******  Begin Leaflet.Draw-->
+
+    <script src="src/plugins/leaflet-draw/Leaflet.draw.js"></script>
+    <script src="src/plugins/leaflet-draw/Leaflet.Draw.Event.js"></script>
+    <link rel="stylesheet" href="src/plugins/leaflet-draw/leaflet.draw.css" />
+
+    <script src="src/plugins/leaflet-draw/Toolbar.js"></script>
+    <script src="src/plugins/leaflet-draw/Tooltip.js"></script>
+
+    <script src="src/plugins/leaflet-draw/ext/GeometryUtil.js"></script>
+    <script src="src/plugins/leaflet-draw/ext/LatLngUtil.js"></script>
+    <script src="src/plugins/leaflet-draw/ext/LineUtil.Intersect.js"></script>
+    <script src="src/plugins/leaflet-draw/ext/Polygon.Intersect.js"></script>
+    <script src="src/plugins/leaflet-draw/ext/Polyline.Intersect.js"></script>
+    <script src="src/plugins/leaflet-draw/ext/TouchEvents.js"></script>
+
+    <script src="src/plugins/leaflet-draw/draw/DrawToolbar.js"></script>
+    <script src="src/plugins/leaflet-draw/draw/handler/Draw.Feature.js"></script>
+    <script src="src/plugins/leaflet-draw/draw/handler/Draw.SimpleShape.js"></script>
+    <script src="src/plugins/leaflet-draw/draw/handler/Draw.Polyline.js"></script>
+    <script src="src/plugins/leaflet-draw/draw/handler/Draw.Circle.js"></script>
+    <script src="src/plugins/leaflet-draw/draw/handler/Draw.Marker.js"></script>
+    <script src="src/plugins/leaflet-draw/draw/handler/Draw.Polygon.js"></script>
+    <script src="src/plugins/leaflet-draw/draw/handler/Draw.Rectangle.js"></script>
+
+    <script src="src/plugins/leaflet-draw/edit/EditToolbar.js"></script>
+    <script src="src/plugins/leaflet-draw/edit/handler/EditToolbar.Edit.js"></script>
+    <script src="src/plugins/leaflet-draw/edit/handler/EditToolbar.Delete.js"></script>
+
+    <script src="src/plugins/leaflet-draw/Control.Draw.js"></script>
+
+    <script src="src/plugins/leaflet-draw/edit/handler/Edit.Poly.js"></script>
+    <script src="src/plugins/leaflet-draw/edit/handler/Edit.SimpleShape.js"></script>
+    <script src="src/plugins/leaflet-draw/edit/handler/Edit.Circle.js"></script>
+    <script src="src/plugins/leaflet-draw/edit/handler/Edit.Rectangle.js"></script>
+    <script src="src/plugins/leaflet-draw/edit/handler/Edit.Marker.js"></script>
+
+    <!--    **************  End of Lealet Draw-->
+
+    <style>
+      #mapdiv {
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+   
+    <div id="mapdiv" class="col-md-9"></div>
+
+    <script>
+      var mymap;
+      var lyrOSM;
+      var ctlMeasure;
+      var mrkCurrentLocation;
+      var locatbtn;
+      var drawpoly;
+      var scal;
+      var editableLayers;
+      var ser;
+
+      $(document).ready(function () {
+        mymap = L.map("mapdiv", { center: [31.01528, 356.51733], zoom: 6 });
+        lyrOSM = L.tileLayer("http://{s}.tile.osm.org/{z}/{x}/{y}.png");
+
+        mymap.addLayer(lyrOSM);
+        scal = L.control
+          .scale({
+            maxWidth: 240,
+            metric: false,
+            imperial: true,
+            position: "bottomleft",
+          })
+          .addTo(mymap);
+        ctlMeasure = L.control
+          .polylineMeasure({
+            position: "topleft",
+            unit: "landmiles",
+            showBearings: true,
+            clearMeasurementsOnStop: false,
+            showClearControl: true,
+            showUnitControl: true,
+          })
+          .addTo(mymap);
+        ser=L.Control.openCageSearch().addTo(mymap);
+        locatbtn = L.easyButton(
+          '<span class="star">&starf;</span>',
+          function () {
+            mymap.locate();
+          }
+        ).addTo(mymap);
+        // drawpoly = L.easyButton( '<img src="src/images/pentagon.svg">', function(){
+
+        // }).addTo(mymap);
+        editableLayers = new L.FeatureGroup();
+        mymap.addLayer(editableLayers);
+        drawpoly = new L.Control.Draw({
+          draw: {
+            rectangle: false,
+            Polyline: false,
+          },
+        });
+        drawpoly.addTo(mymap);
+        var popup = L.popup();
+        mymap.on("click", function (e) {
+          popup
+            .setLatLng(e.latlng)
+            .setContent(
+              "WGS84: " + e.latlng.utm().toString() + "  " + e.latlng.toString()
+            )
+            .openOn(mymap);
+        });
+        mymap.on("draw:created", function (e) {
+          var type = e.layerType,
+            layer = e.layer;
+          var coord = 0;
+          console.log();
+
+          if (type === "polygon") {
+            var seeArea = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+            layer.bindPopup(
+              "the area of polygon is: " + seeArea.toString() + " m²"
+            );
+          }
+          if (type === "circle") {
+            //  var see = L.GeometryUtil.geodesicArea(layer.setRadius(radius));
+          }
+
+          editableLayers.addLayer(layer);
+        });
+
+        mymap.on("contextmenu", function (e) {
+          var dtCurrentTime = new Date();
+          L.marker(e.latlng)
+            .addTo(mymap)
+            .bindPopup(e.latlng.toString() + "<br>" + dtCurrentTime.toString());
+        });
+
+        mymap.on("keypress", function (e) {
+          if (e.originalEvent.key == "l") {
+            mymap.locate();
+          }
+        });
+
+        mymap.on("locationfound", function (e) {
+          if (mrkCurrentLocation) {
+            mrkCurrentLocation.remove();
+          }
+          mrkCurrentLocation = L.circle(e.latlng, { radius: e.accuracy / 2 })
+            .addTo(mymap)
+            .bindPopup(e.latlng);
+          mymap.setView(e.latlng, 24);
+        });
+        mymap.on("locationerror", function (e) {
+          console.log(e);
+          alert("Location was not found");
+        });
+
+      
+
+        // $("#btnZocalo").click(function(){
+        //     mymap.setView([19.43262, -99.13325], 17);
+        // })
+      });
+
+    //   function LatLngToArrayString(ll) {
+    //     //  console.log(ll);
+        
+    //     var polygon = turf.polygon([
+    //       [
+    //         [532450.14, 378742.91],
+    //         [532456.87, 378747.18],
+    //         [532462.14, 378738.91],
+    //         [532455.14, 378734.91],
+    //         [532450.14, 378742.91],
+    //       ],
+    //     ]);
+
+    //     var area = turf.area(polygon);
+    //     console.log(area);
+        
+    //   }
+   
+      
+    </script>
+  </body>
+</html>
